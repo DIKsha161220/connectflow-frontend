@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ConnectFlow CRM</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
   <div class="app-shell">
@@ -94,7 +94,6 @@
             <div class="table-wrap"><table><thead><tr><th>Customer</th><th>Call type</th><th>Date & time</th><th>Outcome</th><th>Notes</th></tr></thead><tbody id="calls-table"></tbody></table></div>
             <div id="calls-mobile" class="mobile-record-list"></div>
           </article>
-          <p class="helper-note">This prototype records calls entered by the user. It does not place or automatically detect phone calls.</p>
         </section>
 
         <section id="visits-page" class="page-panel hidden">
@@ -113,7 +112,6 @@
           </div>
           <div class="toolbar"><label class="search-box"><span>⌕</span><input id="followup-search" type="search" placeholder="Search follow-ups..."></label><select id="followup-filter" aria-label="Filter follow-up status"><option value="">All follow-ups</option><option>Due Today</option><option>Overdue</option><option>Upcoming</option><option>Completed</option></select></div>
           <article class="panel"><div class="panel-heading"><div><h2>Follow-up schedule</h2><p>Stay on top of your next customer call</p></div></div><div id="followups-list" class="followup-list"></div></article>
-          <div class="reminder-note"><strong>♧ Reminder setup</strong><p>This prototype shows follow-up status inside the app. Automatic push, email or WhatsApp notifications need a backend scheduler and notification configuration.</p></div>
         </section>
       </section>
       <footer>ConnectFlow CRM <span>•</span> UI prototype <span>•</span> Sample data</footer>
@@ -133,7 +131,7 @@
       <div class="modal-actions"><button type="button" class="btn btn-secondary" id="cancel-dialog">Cancel</button><button type="submit" class="btn btn-primary">Save record</button></div>
     </form>
   </dialog>
-  <script src="app.js"></script>
-  <script>document.getElementById("close-detail-dialog").addEventListener("click",()=>document.getElementById("institute-detail-dialog").close());</script>
+  <script type="module" src="/src/app.js"></script>
+  <script>document.getElementById("close-detail-dialog")?.addEventListener("click",()=>document.getElementById("institute-detail-dialog")?.close());</script>
 </body>
 </html>
