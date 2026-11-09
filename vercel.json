@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/connectflow/index.html" },
+    { "source": "/index.html", "destination": "/connectflow/index.html" }
+  ]
+}
