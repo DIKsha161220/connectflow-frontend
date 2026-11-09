@@ -1,13 +1,139 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0; url=/connectflow/index.html">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ConnectFlow CRM</title>
+  <link rel="stylesheet" href="./style.css">
 </head>
-<body style="margin:0; background:#f8fafc;">
-  <script>
-    window.location.replace("/connectflow/index.html");
-  </script>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-icon">C</div>
+        <div><strong>ConnectFlow</strong><small>CRM WORKSPACE</small></div>
+      </div>
+      <div class="workspace-label">WORKSPACE</div>
+      <nav class="nav-list" aria-label="Main navigation">
+        <button class="nav-link active" data-page="dashboard"><span>▦</span> Dashboard</button>
+        <button class="nav-link" data-page="customers"><span>♙</span> Customers</button>
+        <button class="nav-link" data-page="calls"><span>☎</span> Call Logs</button>
+        <button class="nav-link" data-page="visits"><span>⌖</span> Visits</button>
+        <button class="nav-link" data-page="followups"><span>◷</span> Follow-ups <span class="nav-count" id="followup-count">3</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="avatar">AD</div>
+        <div class="user-info"><strong id="current-user-name">Admin User</strong><small id="current-user-role">Administrative</small></div>
+        <span class="more">···</span>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobile-menu" aria-label="Open navigation">☰</button>
+        <div class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb-page">Dashboard</strong></div>
+        <div class="topbar-actions">
+          <label class="role-switch-label">Demo role <select id="role-switcher" aria-label="Switch demo role"><option value="admin">Administrative</option><option value="calling">Calling Team</option><option value="field">On-field Employee</option></select></label>
+          <span class="today-label" id="today-label"></span>
+          <button class="icon-button" id="notification-button" title="Notifications">♧<i></i></button>
+          <div class="top-avatar" id="current-user-avatar">AD</div>
+        </div>
+      </header>
+
+      <section class="page-content">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">CUSTOMER RELATIONSHIP MANAGEMENT</p>
+            <h1 id="page-title">Dashboard</h1>
+            <p class="page-subtitle" id="page-subtitle">Here’s what’s happening with your team today.</p>
+          </div>
+          <button class="btn btn-primary" id="primary-action"><span>＋</span> <span id="primary-action-label">Add Institute</span></button>
+        </div>
+
+        <div class="role-banner" id="role-banner">Administrative role: full access.</div>
+        <div class="demo-banner"><strong>DEMO DATA</strong> All sample contacts, phone numbers, addresses and follow-up activities are illustrative. Replace them before real use.</div>
+        <div id="notice" class="notice hidden" role="status"></div>
+        <section id="dashboard-page" class="page-panel">
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-top"><span>Total Institutes</span><span class="stat-icon blue">♙</span></div><div class="stat-value" id="stat-customers">5</div><div class="stat-foot"><span class="positive">● Active records</span><span class="muted">All employees</span></div></article>
+            <article class="stat-card"><div class="stat-top"><span>Calls Today</span><span class="stat-icon green">☎</span></div><div class="stat-value" id="stat-calls">0</div><div class="stat-foot"><span class="positive">● Logged calls</span><span class="muted">Manual entry</span></div></article>
+            <article class="stat-card"><div class="stat-top"><span>Visits</span><span class="stat-icon purple">⌖</span></div><div class="stat-value" id="stat-visits">0</div><div class="stat-foot"><span class="positive">● Planned & done</span><span class="muted">This week</span></div></article>
+            <article class="stat-card"><div class="stat-top"><span>Pending Follow-ups</span><span class="stat-icon orange">◷</span></div><div class="stat-value" id="stat-followups">0</div><div class="stat-foot"><span class="danger-text">● Needs attention</span><span class="muted">Due / overdue</span></div></article>
+          </div>
+          <div class="dashboard-grid">
+            <article class="panel">
+              <div class="panel-heading"><div><h2>Follow-ups to focus on</h2><p>Customers who need your attention</p></div><button class="text-button" data-goto="followups">View all →</button></div>
+              <div id="dashboard-followups" class="item-list"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-heading"><div><h2>Recent call activity</h2><p>Latest updates from your team</p></div><button class="text-button" data-goto="calls">View logs →</button></div>
+              <div id="dashboard-calls" class="item-list"></div>
+            </article>
+          </div>
+          <article class="panel team-panel">
+            <div class="panel-heading"><div><h2>Team overview</h2><p>Sample activity summary by employee</p></div><span class="pill pill-blue">This week</span></div>
+            <div class="team-grid">
+              <div class="team-member"><div class="avatar avatar-blue">AP</div><div class="team-person"><strong>Amit Patil</strong><small>Sales Executive</small></div><div class="team-metric"><strong>18</strong><small>Calls</small></div><div class="team-metric"><strong>5</strong><small>Visits</small></div></div>
+              <div class="team-member"><div class="avatar avatar-purple">NS</div><div class="team-person"><strong>Neha Shah</strong><small>Sales Executive</small></div><div class="team-metric"><strong>15</strong><small>Calls</small></div><div class="team-metric"><strong>4</strong><small>Visits</small></div></div>
+              <div class="team-member"><div class="avatar avatar-green">RM</div><div class="team-person"><strong>Rohit More</strong><small>Field Executive</small></div><div class="team-metric"><strong>12</strong><small>Calls</small></div><div class="team-metric"><strong>6</strong><small>Visits</small></div></div>
+            </div>
+          </article>
+        </section>
+
+        <section id="customers-page" class="page-panel hidden">
+          <div class="toolbar"><label class="search-box"><span>⌕</span><input id="customer-search" type="search" placeholder="Search institute, contact, phone or district..."></label><select id="customer-status-filter" aria-label="Filter by status"><option value="">All statuses</option><option>New</option><option>Contacted</option><option>Interested</option><option>Follow-up</option><option>Converted</option><option>Not Interested</option></select></div>
+          <article class="panel table-panel"><div class="panel-heading"><div><h2>All Institutes</h2><p>Institute details, leads and assigned employees</p></div><span class="pill pill-blue" id="customer-record-count">5 records</span></div>
+            <div class="table-wrap"><table><thead><tr><th>Institute Name</th><th>Location</th><th>Contact No.</th><th>No. of Branches</th><th>Assigned Employee</th><th>Priority</th><th>Lead Status</th><th>Next Follow-up</th><th>Action</th></tr></thead><tbody id="customers-table"></tbody></table></div>
+            <div id="customers-mobile" class="mobile-record-list"></div>
+          </article>
+        </section>
+
+        <section id="calls-page" class="page-panel hidden">
+          <div class="toolbar"><label class="search-box"><span>⌕</span><input id="call-search" type="search" placeholder="Search call records..."></label><select id="call-result-filter" aria-label="Filter by call outcome"><option value="">All outcomes</option><option>Interested</option><option>Call Back</option><option>No Answer</option><option>Not Interested</option></select></div>
+          <article class="panel table-panel"><div class="panel-heading"><div><h2>Call history</h2><p>Manually record calls and their outcomes</p></div><span class="pill pill-blue" id="call-record-count">3 logs</span></div>
+            <div class="table-wrap"><table><thead><tr><th>Customer</th><th>Call type</th><th>Date & time</th><th>Outcome</th><th>Notes</th></tr></thead><tbody id="calls-table"></tbody></table></div>
+            <div id="calls-mobile" class="mobile-record-list"></div>
+          </article>
+          <p class="helper-note">This prototype records calls entered by the user. It does not place or automatically detect phone calls.</p>
+        </section>
+
+        <section id="visits-page" class="page-panel hidden">
+          <div class="toolbar"><label class="search-box"><span>⌕</span><input id="visit-search" type="search" placeholder="Search customer, company or employee..."></label><select id="visit-status-filter" aria-label="Filter by visit status"><option value="">All visit statuses</option><option>Scheduled</option><option>Completed</option><option>Cancelled</option></select></div>
+          <article class="panel table-panel"><div class="panel-heading"><div><h2>Visit records</h2><p>Plan and track customer meetings</p></div><span class="pill pill-blue" id="visit-record-count">3 visits</span></div>
+            <div class="table-wrap"><table><thead><tr><th>Customer / Company</th><th>Visit date</th><th>Assigned to</th><th>Status</th><th>Action</th></tr></thead><tbody id="visits-table"></tbody></table></div>
+            <div id="visits-mobile" class="mobile-record-list"></div>
+          </article>
+        </section>
+
+        <section id="followups-page" class="page-panel hidden">
+          <div class="stats-grid followup-stats">
+            <article class="stat-card compact-stat"><div class="stat-top"><span>Due today</span><span class="stat-icon orange">◷</span></div><div class="stat-value" id="due-count">2</div></article>
+            <article class="stat-card compact-stat"><div class="stat-top"><span>Overdue</span><span class="stat-icon red">!</span></div><div class="stat-value" id="overdue-count">1</div></article>
+            <article class="stat-card compact-stat"><div class="stat-top"><span>Upcoming</span><span class="stat-icon blue">▣</span></div><div class="stat-value" id="upcoming-count">1</div></article>
+          </div>
+          <div class="toolbar"><label class="search-box"><span>⌕</span><input id="followup-search" type="search" placeholder="Search follow-ups..."></label><select id="followup-filter" aria-label="Filter follow-up status"><option value="">All follow-ups</option><option>Due Today</option><option>Overdue</option><option>Upcoming</option><option>Completed</option></select></div>
+          <article class="panel"><div class="panel-heading"><div><h2>Follow-up schedule</h2><p>Stay on top of your next customer call</p></div></div><div id="followups-list" class="followup-list"></div></article>
+          <div class="reminder-note"><strong>♧ Reminder setup</strong><p>This prototype shows follow-up status inside the app. Automatic push, email or WhatsApp notifications need a backend scheduler and notification configuration.</p></div>
+        </section>
+      </section>
+      <footer>ConnectFlow CRM <span>•</span> UI prototype <span>•</span> Sample data</footer>
+    </main>
+  </div>
+
+  <dialog id="institute-detail-dialog" class="institute-detail-dialog">
+    <div class="detail-dialog-inner">
+      <div class="modal-heading"><div><p class="eyebrow">CONNECTFLOW CRM</p><h2>Institute Details</h2></div><button type="button" class="close-button" id="close-detail-dialog" aria-label="Close">×</button></div>
+      <div id="institute-detail-content"></div>
+    </div>
+  </dialog>
+  <dialog id="record-dialog" class="record-dialog">
+    <form id="record-form" method="dialog">
+      <div class="modal-heading"><div><p class="eyebrow">CONNECTFLOW CRM</p><h2 id="dialog-title">Add Institute</h2></div><button type="button" class="close-button" id="close-dialog" aria-label="Close">×</button></div>
+      <div id="dialog-fields" class="form-grid"></div>
+      <div class="modal-actions"><button type="button" class="btn btn-secondary" id="cancel-dialog">Cancel</button><button type="submit" class="btn btn-primary">Save record</button></div>
+    </form>
+  </dialog>
+  <script src="app.js"></script>
+  <script>document.getElementById("close-detail-dialog").addEventListener("click",()=>document.getElementById("institute-detail-dialog").close());</script>
 </body>
 </html>
