@@ -1,5 +1,6 @@
 // ConnectFlow Backend API
 const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "https://connectflow-springboot-backend.onrender.com";
 
 async function loadDashboardSummary() {
   try {
