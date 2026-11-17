@@ -1,5 +1,5 @@
 // ConnectFlow Backend API
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "https://connectflow-springboot-backend.onrender.com";
 
 async function loadDashboardSummary() {
   try {
@@ -71,7 +71,6 @@ function requirePermission(type){
 }
 const state = {
   page: "dashboard",
-  // DEMO ONLY: all contact names, phone numbers, addresses and activity below are illustrative.
   customers: [
     {id:1,name:"Shree Ganesh Co Op Credit Society Ltd.",phone:"9000000001",company:"Shree Ganesh Co Op Credit Society Ltd.",street:"Demo Market Road",village:"Shivajinagar",taluka:"Haveli",district:"Pune",state:"Maharashtra",pin:"411005",contacts:"Sunil Patil | Manager | 9000000001",referenceBy:"Amit Patil",referenceFrom:"Employee",branchCount:"5",priority:"High",owner:"Amit Patil",status:"Interested",followupDate:"2026-10-19T11:30",notes:"DEMO: Interested in document verification software."},
     {id:2,name:"Shree Nagari Sahakari Patsanstha Maryadit",phone:"9000000002",company:"Shree Nagari Sahakari Patsanstha Maryadit",street:"Sample College Road",village:"College Road",taluka:"Nashik",district:"Nashik",state:"Maharashtra",pin:"422005",contacts:"Priya Deshmukh | CEO | 9000000002\nRakesh Jadhav | IT Manager | 9000000003",referenceBy:"Neha Shah",referenceFrom:"Existing Institute",branchCount:"8",priority:"High",owner:"Neha Shah",status:"Follow-up",followupDate:"2026-10-20T15:00",notes:"DEMO: Asked for product demo and pricing."},
@@ -311,7 +310,37 @@ function saveRecord(type, data) {
     const customer={id:state.nextId++,name:data.name.trim(),phone:phone,company:data.name.trim(),street:data.street.trim(),village:data.village.trim(),taluka:data.taluka.trim(),district:data.district.trim(),state:data.state.trim(),pin:data.pin.trim(),contacts:data.contacts.trim(),referenceBy:data.referenceBy.trim(),referenceFrom:data.referenceFrom,branchCount:data.branchCount === "" ? "" : Math.max(1, parseInt(data.branchCount, 10) || 1),priority:data.priority||"Medium",owner:data.owner,status:data.status,followupDate:data.followupDate,notes:data.notes.trim()};
     state.customers.unshift(customer);
     if(data.followupDate) state.followups.unshift({id:state.nextId++,customer:customer.name,date:data.followupDate,owner:data.owner,status:"Upcoming",notes:data.notes.trim()||"Institute follow-up"});
-    showNotice("Institute saved in this browser prototype.");
+    showNotice("Saving institute to PostgreSQL...");
+
+    // Send POST to PostgreSQL backend
+    fetch("http://localhost:8080/api/institutes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        instituteName: data.name.trim(),
+        streetAddress: data.street ? data.street.trim() : null,
+        village: data.village ? data.village.trim() : null,
+        taluka: data.taluka ? data.taluka.trim() : null,
+        district: data.district ? data.district.trim() : null,
+        state: data.state ? data.state.trim() : "Maharashtra",
+        pinCode: (data.pin && data.pin.trim().length === 6) ? data.pin.trim() : null,
+        branchCount: data.branchCount ? Math.max(1, parseInt(data.branchCount, 10)) : 1,
+        referenceBy: data.referenceBy ? data.referenceBy.trim() : "Employee",
+        referenceFrom: (["Employee", "Existing Institute", "Website", "WhatsApp", "Other"].includes(data.referenceFrom)) ? data.referenceFrom : "Employee",
+        leadStatus: "New",
+        priority: (["Low", "Medium", "High"].includes(data.priority)) ? data.priority : "Medium",
+        notes: data.notes ? data.notes.trim() : ""
+      })
+    })
+    .then(r => r.json())
+    .then(res => {
+      console.log("Saved to PostgreSQL:", res);
+      showNotice("Institute saved to PostgreSQL database!");
+      loadLiveDatabaseData();
+    })
+    .catch(err => {
+      console.warn("Backend save failed:", err);
+    });
   } else if(type==="call") {
     const activityDate=data.activityDate || now.toISOString().slice(0,16);
     state.calls.unshift({id:state.nextId++,customer:data.customer,type:data.callType,date:activityDate,owner:data.owner||"Unassigned",contactPerson:data.contactPerson.trim(),contactPhone:data.contactPhone.trim(),result:data.result,notes:data.notes.trim()});
@@ -366,8 +395,75 @@ document.addEventListener("click",e=>{
   const logFollowup=e.target.closest("[data-followup-call]");
   if(logFollowup){setPage("calls");openDialog("call");const select=$('dialog-fields').querySelector('[name="customer"]');if(select)select.value=logFollowup.dataset.followupCall;}
 });
-$("notification-button").addEventListener("click",()=>{setPage("followups");showNotice("Review due and overdue follow-ups here. Browser push notifications are not configured in this prototype.");});
-$("today-label").textContent=new Date().toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"short"});
+const notifBtn = $("notification-button");
+if (notifBtn) {
+  notifBtn.addEventListener("click",()=>{setPage("followups");showNotice("Review due and overdue follow-ups here. Browser push notifications are not configured in this prototype.");});
+}
+const todayLbl = $("today-label");
+if (todayLbl) {
+  todayLbl.textContent=new Date().toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"short"});
+}
 applyRole();
 
+async function loadLiveDatabaseData() {
+  const BACKEND_URL = "http://localhost:8080/api";
+  try {
+    const res = await fetch(`${BACKEND_URL}/institutes`);
+    if (res.ok) {
+      const json = await res.json();
+      const list = json.data || json;
+      if (Array.isArray(list) && list.length > 0) {
+        state.customers = list.map(inst => ({
+          id: inst.instituteId || inst.id,
+          name: inst.instituteName || inst.name,
+          phone: inst.primaryContactPhone || inst.phone || "",
+          company: inst.instituteName || inst.name,
+          contacts: (inst.contacts && inst.contacts.length > 0) 
+            ? inst.contacts.map(c => `${c.contactPerson} | ${c.designation || "Contact"} | ${c.phone}`).join("\n") 
+            : (inst.phone || "No contacts"),
+          street: inst.streetAddress || "",
+          village: inst.village || "",
+          taluka: inst.taluka || "",
+          district: inst.district || "",
+          state: inst.state || "Maharashtra",
+          pin: inst.pinCode || "",
+          referenceBy: inst.referenceBy || "Employee",
+          referenceFrom: inst.referenceFrom || "Employee",
+          branchCount: inst.branchCount || 1,
+          priority: inst.priority || "Medium",
+          owner: inst.assignedEmployeeName || "Amit Patil",
+          status: inst.leadStatus || "New",
+          followupDate: inst.nextFollowUpAt || "",
+          notes: inst.notes || ""
+        }));
+        renderAll();
+      }
+    }
+  } catch(e) {}
 
+  try {
+    const dashRes = await fetch(`${BACKEND_URL}/dashboard`);
+    if (dashRes.ok) {
+      const json = await dashRes.json();
+      const d = json.data || json;
+      if (d.totalInstitutes !== undefined) {
+        const el = $("stat-customers");
+        if (el) el.textContent = d.totalInstitutes;
+      }
+      if (d.totalCalls !== undefined) {
+        const el = $("stat-calls");
+        if (el) el.textContent = d.totalCalls;
+      }
+      if (d.totalVisits !== undefined) {
+        const el = $("stat-visits");
+        if (el) el.textContent = d.totalVisits;
+      }
+      if (d.pendingFollowUps !== undefined) {
+        const el = $("stat-followups");
+        if (el) el.textContent = d.pendingFollowUps;
+      }
+    }
+  } catch(e) {}
+}
+
+loadLiveDatabaseData();

@@ -1,6 +1,5 @@
 // ConnectFlow Backend API
 const API_BASE_URL = "http://localhost:8080";
-const API_BASE_URL = "https://connectflow-springboot-backend.onrender.com";
 
 async function loadDashboardSummary() {
   try {
@@ -312,7 +311,37 @@ function saveRecord(type, data) {
     const customer={id:state.nextId++,name:data.name.trim(),phone:phone,company:data.name.trim(),street:data.street.trim(),village:data.village.trim(),taluka:data.taluka.trim(),district:data.district.trim(),state:data.state.trim(),pin:data.pin.trim(),contacts:data.contacts.trim(),referenceBy:data.referenceBy.trim(),referenceFrom:data.referenceFrom,branchCount:data.branchCount === "" ? "" : Math.max(1, parseInt(data.branchCount, 10) || 1),priority:data.priority||"Medium",owner:data.owner,status:data.status,followupDate:data.followupDate,notes:data.notes.trim()};
     state.customers.unshift(customer);
     if(data.followupDate) state.followups.unshift({id:state.nextId++,customer:customer.name,date:data.followupDate,owner:data.owner,status:"Upcoming",notes:data.notes.trim()||"Institute follow-up"});
-    showNotice("Institute saved in this browser prototype.");
+    showNotice("Saving institute to PostgreSQL...");
+
+    // Send POST to PostgreSQL backend
+    fetch("http://localhost:8080/api/institutes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        instituteName: data.name.trim(),
+        streetAddress: data.street ? data.street.trim() : null,
+        village: data.village ? data.village.trim() : null,
+        taluka: data.taluka ? data.taluka.trim() : null,
+        district: data.district ? data.district.trim() : null,
+        state: data.state ? data.state.trim() : "Maharashtra",
+        pinCode: (data.pin && data.pin.trim().length === 6) ? data.pin.trim() : null,
+        branchCount: data.branchCount ? Math.max(1, parseInt(data.branchCount, 10)) : 1,
+        referenceBy: data.referenceBy ? data.referenceBy.trim() : "Employee",
+        referenceFrom: (["Employee", "Existing Institute", "Website", "WhatsApp", "Other"].includes(data.referenceFrom)) ? data.referenceFrom : "Employee",
+        leadStatus: "New",
+        priority: (["Low", "Medium", "High"].includes(data.priority)) ? data.priority : "Medium",
+        notes: data.notes ? data.notes.trim() : ""
+      })
+    })
+    .then(r => r.json())
+    .then(res => {
+      console.log("Saved to PostgreSQL:", res);
+      showNotice("Institute saved to PostgreSQL database!");
+      loadLiveDatabaseData();
+    })
+    .catch(err => {
+      console.warn("Backend save failed:", err);
+    });
   } else if(type==="call") {
     const activityDate=data.activityDate || now.toISOString().slice(0,16);
     state.calls.unshift({id:state.nextId++,customer:data.customer,type:data.callType,date:activityDate,owner:data.owner||"Unassigned",contactPerson:data.contactPerson.trim(),contactPhone:data.contactPhone.trim(),result:data.result,notes:data.notes.trim()});
@@ -367,8 +396,77 @@ document.addEventListener("click",e=>{
   const logFollowup=e.target.closest("[data-followup-call]");
   if(logFollowup){setPage("calls");openDialog("call");const select=$('dialog-fields').querySelector('[name="customer"]');if(select)select.value=logFollowup.dataset.followupCall;}
 });
-$("notification-button").addEventListener("click",()=>{setPage("followups");showNotice("Review due and overdue follow-ups here. Browser push notifications are not configured in this prototype.");});
-$("today-label").textContent=new Date().toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"short"});
+const notifBtn = $("notification-button");
+if (notifBtn) {
+  notifBtn.addEventListener("click",()=>{setPage("followups");showNotice("Review due and overdue follow-ups here. Browser push notifications are not configured in this prototype.");});
+}
+const todayLbl = $("today-label");
+if (todayLbl) {
+  todayLbl.textContent=new Date().toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"short"});
+}
 applyRole();
+
+async function loadLiveDatabaseData() {
+  const BACKEND_URL = "http://localhost:8080/api";
+  try {
+    const res = await fetch(`${BACKEND_URL}/institutes`);
+    if (res.ok) {
+      const json = await res.json();
+      const list = json.data || json;
+      if (Array.isArray(list) && list.length > 0) {
+        state.customers = list.map(inst => ({
+          id: inst.instituteId || inst.id,
+          name: inst.instituteName || inst.name,
+          phone: inst.primaryContactPhone || inst.phone || "",
+          company: inst.instituteName || inst.name,
+          contacts: (inst.contacts && inst.contacts.length > 0) 
+            ? inst.contacts.map(c => `${c.contactPerson} | ${c.designation || "Contact"} | ${c.phone}`).join("\n") 
+            : (inst.phone || "No contacts"),
+          street: inst.streetAddress || "",
+          village: inst.village || "",
+          taluka: inst.taluka || "",
+          district: inst.district || "",
+          state: inst.state || "Maharashtra",
+          pin: inst.pinCode || "",
+          referenceBy: inst.referenceBy || "Employee",
+          referenceFrom: inst.referenceFrom || "Employee",
+          branchCount: inst.branchCount || 1,
+          priority: inst.priority || "Medium",
+          owner: inst.assignedEmployeeName || "Amit Patil",
+          status: inst.leadStatus || "New",
+          followupDate: inst.nextFollowUpAt || "",
+          notes: inst.notes || ""
+        }));
+        renderAll();
+      }
+    }
+  } catch(e) {}
+
+  try {
+    const dashRes = await fetch(`${BACKEND_URL}/dashboard`);
+    if (dashRes.ok) {
+      const json = await dashRes.json();
+      const d = json.data || json;
+      if (d.totalInstitutes !== undefined) {
+        const el = $("stat-customers");
+        if (el) el.textContent = d.totalInstitutes;
+      }
+      if (d.totalCalls !== undefined) {
+        const el = $("stat-calls");
+        if (el) el.textContent = d.totalCalls;
+      }
+      if (d.totalVisits !== undefined) {
+        const el = $("stat-visits");
+        if (el) el.textContent = d.totalVisits;
+      }
+      if (d.pendingFollowUps !== undefined) {
+        const el = $("stat-followups");
+        if (el) el.textContent = d.pendingFollowUps;
+      }
+    }
+  } catch(e) {}
+}
+
+loadLiveDatabaseData();
 
 

@@ -13,7 +13,7 @@ import {
 import "./App.css";
 
 const API = axios.create({
-  baseURL: "http://localhost:8080/api",
+  baseURL: "https://connectflow-springboot-backend.onrender.com/api",
 });
 
 const modules = [
