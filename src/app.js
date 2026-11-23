@@ -22,9 +22,9 @@ async function loadDashboardSummary() {
 
     const data = await response.json();
 
-    if ($("stat-customers")) $("stat-customers").textContent = data.totalInstitutes ?? 0;
-    if ($("stat-visits")) $("stat-visits").textContent = data.totalVisits ?? 0;
-    if ($("stat-followups")) $("stat-followups").textContent = data.totalFollowUps ?? 0;
+    if ($("stat-customers")) $("stat-customers").textContent = Math.max(visibleCustomers().length, data.totalInstitutes ?? 0);
+    if ($("stat-visits")) $("stat-visits").textContent = Math.max(state.visits.length, data.totalVisits ?? 0);
+    if ($("stat-followups")) $("stat-followups").textContent = Math.max(state.followups.length, data.totalFollowUps ?? 0);
 
     console.log("Dashboard summary loaded:", data);
   } catch (error) {
@@ -1297,8 +1297,17 @@ async function loadLiveDatabaseData() {
           followupDate: inst.nextFollowUpAt || "",
           notes: inst.notes || ""
         }));
-        liveCustomers.sort((a, b) => (b.id || 0) - (a.id || 0));
-        state.customers = liveCustomers;
+        // Merge: keep all 39 existing institutes and union with live backend institutes
+        const liveIds = new Set(liveCustomers.map(x => x.id).filter(Boolean));
+        const liveNames = new Set(liveCustomers.map(x => (x.name || "").trim().toLowerCase()).filter(Boolean));
+        const merged = [...liveCustomers];
+        for (const existing of state.customers) {
+          if (!liveIds.has(existing.id) && !liveNames.has((existing.name || "").trim().toLowerCase())) {
+            merged.push(existing);
+          }
+        }
+        merged.sort((a, b) => (b.id || 0) - (a.id || 0));
+        state.customers = merged;
 
         // Auto-sync follow-ups from live institute records that have nextFollowUpAt
         liveCustomers.forEach(inst => {
