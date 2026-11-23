@@ -322,7 +322,8 @@
           renderDashboardForUser(user);
           return;
         } catch(e) {
-          localStorage.clear();
+          localStorage.removeItem("crm_auth_user");
+      localStorage.removeItem("crm_access_token");
         }
       }
       // Show login
@@ -450,7 +451,8 @@
         console.warn("Logout recording failed", e);
       }
 
-      localStorage.clear();
+      localStorage.removeItem("crm_auth_user");
+      localStorage.removeItem("crm_access_token");
       document.getElementById("login-overlay").style.display = "flex";
       document.getElementById("crm-app-shell").style.display = "none";
       showLoginMsg("You have been safely logged out.", "ok");

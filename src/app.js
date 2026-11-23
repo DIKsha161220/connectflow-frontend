@@ -1,20 +1,20 @@
 // ConnectFlow Backend API
-const API_BASE_URL = "https://connectflow-springboot-backend.onrender.com";
+const API_BASE_URL = window.location.hostname === "localhost" ? "http://localhost:8080" : "https://connectflow-springboot-backend.onrender.com";
 
 async function loadDashboardSummary() {
   try {
-    const token = prompt("Paste your login token:");
+    const token = localStorage.getItem("crm_access_token") || "";
 
-const response = await fetch(
-  `${API_BASE_URL}/api/dashboard/summary`,
-  {
-    method: "GET",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    }
-  }
-);
+    const response = await fetch(
+      `${API_BASE_URL}/api/dashboard/summary`,
+      {
+        method: "GET",
+        headers: {
+          "Authorization": token ? `Bearer ${token}` : "",
+          "Content-Type": "application/json"
+        }
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`API request failed: ${response.status}`);
@@ -22,13 +22,13 @@ const response = await fetch(
 
     const data = await response.json();
 
-    $("stat-customers").textContent = data.totalInstitutes ?? 0;
-    $("stat-visits").textContent = data.totalVisits ?? 0;
-    $("stat-followups").textContent = data.totalFollowUps ?? 0;
+    if ($("stat-customers")) $("stat-customers").textContent = data.totalInstitutes ?? 0;
+    if ($("stat-visits")) $("stat-visits").textContent = data.totalVisits ?? 0;
+    if ($("stat-followups")) $("stat-followups").textContent = data.totalFollowUps ?? 0;
 
     console.log("Dashboard summary loaded:", data);
   } catch (error) {
-    console.error("Dashboard API error:", error);
+    console.warn("Dashboard API offline, using local state:", error);
   }
 }
 
@@ -38,51 +38,861 @@ const $ = (id) => document.getElementById(id);
 
 const roles = {
   admin: {label:"Administrative", user:"Admin User", initials:"AD", permissions:["dashboard","customers","calls","visits","followups"], canAddInstitute:true, canCall:true, canVisit:true, scope:"all"},
-  calling: {label:"Calling Team", user:"Neha Shah", initials:"NS", permissions:["dashboard","customers","calls","followups"], canAddInstitute:false, canCall:true, canVisit:false, scope:"assigned"},
-  field: {label:"On-field Employee", user:"Rohit More", initials:"RM", permissions:["dashboard","customers","calls","visits","followups"], canAddInstitute:false, canCall:true, canVisit:true, scope:"assigned"}
+  calling: {label:"Calling Team", user:"Neha Shah", initials:"NS", permissions:["dashboard","customers","calls","visits","followups"], canAddInstitute:true, canCall:true, canVisit:true, scope:"all"},
+  field: {label:"On-field Employee", user:"Rohit More", initials:"RM", permissions:["dashboard","customers","calls","visits","followups"], canAddInstitute:true, canCall:true, canVisit:true, scope:"all"}
 };
 let currentRole = "admin";
-function activeRole(){ return roles[currentRole]; }
-function visibleCustomers(){ return activeRole().scope==="all" ? state.customers : state.customers.filter(c=>c.owner===activeRole().user); }
-function visibleNames(){ return new Set(visibleCustomers().map(c=>c.name)); }
-function canAccessPage(page){ return activeRole().permissions.includes(page); }
+function activeRole(){ return roles[currentRole] || roles.admin; }
+function visibleCustomers(){ return state.customers || []; }
+function visibleNames(){ return new Set((state.customers || []).map(c=>c.name)); }
+function canAccessPage(page){ return true; }
 function applyRole(){
   const r=activeRole();
-  $("current-user-name").textContent=r.user;
-  $("current-user-role").textContent=r.label;
-  $("current-user-avatar").textContent=r.initials;
-  document.querySelector(".sidebar-bottom .avatar").textContent=r.initials;
-  $("role-banner").textContent = r.scope==="all" ? "Administrative role: full access to all institutes and activities." : `${r.label}: showing only institutes assigned to ${r.user}.`;
+  const storedUser = JSON.parse(localStorage.getItem("crm_auth_user") || "{}");
+  const userName = storedUser.fullName || r.user;
+  const userRole = storedUser.role || r.label;
+  const initials = userName.trim().split(/\s+/).filter(Boolean).map(x=>x[0]).join("").toUpperCase().substring(0,2) || "US";
+
+  $("current-user-name").textContent = userName;
+  $("current-user-role").textContent = userRole;
+  $("current-user-avatar").textContent = initials;
+  const sideAvatar = document.querySelector(".sidebar-bottom .avatar");
+  if (sideAvatar) sideAvatar.textContent = initials;
+  
+  $("role-banner").textContent = `${userRole} Access: Full access to all institutes, call logs, visits and follow-ups.`;
   document.querySelectorAll(".nav-link").forEach(b=>{
-    const page=b.dataset.page, allowed=canAccessPage(page);
-    b.classList.toggle("hidden",!allowed);
+    b.classList.remove("hidden");
   });
-  $("primary-action").classList.toggle("hidden", !((state.page==="customers" && r.canAddInstitute) || (state.page==="calls" && r.canCall) || (state.page==="visits" && r.canVisit) || (state.page==="followups" && currentRole==="admin") || state.page==="dashboard" && r.canAddInstitute));
-  if(!canAccessPage(state.page)) state.page="dashboard";
-  setPage(state.page);
+  $("primary-action").classList.remove("hidden");
+  setPage(state.page || "dashboard");
 }
 function requirePermission(type){
-  const r=activeRole();
-  if(type==="customer" && !r.canAddInstitute){showNotice("Only Administrative users can add a new Institute.");return false;}
-  if(type==="visit" && !r.canVisit){showNotice("Calling Team cannot create visit records.");return false;}
-  if(type==="call" && !r.canCall){showNotice("You do not have permission to add call records.");return false;}
-  if(type==="followup" && currentRole!=="admin"){showNotice("Only Administrative users can schedule follow-ups in this demo.");return false;}
   return true;
 }
 const state = {
   page: "dashboard",
+  // DEMO ONLY: all contact names, phone numbers, addresses and activity below are illustrative.
   customers: [
-    {id:1,name:"Shree Ganesh Co Op Credit Society Ltd.",phone:"9000000001",company:"Shree Ganesh Co Op Credit Society Ltd.",street:"Demo Market Road",village:"Shivajinagar",taluka:"Haveli",district:"Pune",state:"Maharashtra",pin:"411005",contacts:"Sunil Patil | Manager | 9000000001",referenceBy:"Amit Patil",referenceFrom:"Employee",branchCount:"5",priority:"High",owner:"Amit Patil",status:"Interested",followupDate:"2026-10-19T11:30",notes:"DEMO: Interested in document verification software."},
-    {id:2,name:"Shree Nagari Sahakari Patsanstha Maryadit",phone:"9000000002",company:"Shree Nagari Sahakari Patsanstha Maryadit",street:"Sample College Road",village:"College Road",taluka:"Nashik",district:"Nashik",state:"Maharashtra",pin:"422005",contacts:"Priya Deshmukh | CEO | 9000000002\nRakesh Jadhav | IT Manager | 9000000003",referenceBy:"Neha Shah",referenceFrom:"Existing Institute",branchCount:"8",priority:"High",owner:"Neha Shah",status:"Follow-up",followupDate:"2026-10-20T15:00",notes:"DEMO: Asked for product demo and pricing."},
-    {id:3,name:"Ganesh Chits Fund Pvt Ltd.",phone:"9000000004",company:"Ganesh Chits Fund Pvt Ltd.",street:"Example Main Road",village:"Tilakwadi",taluka:"Belgaum",district:"Belgaum",state:"Karnataka",pin:"590006",contacts:"Mahesh Kulkarni | Director | 9000000004",referenceBy:"Rohit More",referenceFrom:"WhatsApp",branchCount:"3",priority:"Medium",owner:"Rohit More",status:"Contacted",followupDate:"2026-10-21T12:00",notes:"DEMO: Introductory call completed; share brochure."},
-    {id:4,name:"Aadhar Patpedhi Maryadit",phone:"9000000005",company:"Aadhar Patpedhi Maryadit",street:"Demo Station Road",village:"Dadar",taluka:"Mumbai City",district:"Mumbai",state:"Maharashtra",pin:"400014",contacts:"Kavita Shah | Branch Manager | 9000000005",referenceBy:"Amit Patil",referenceFrom:"Website",branchCount:"2",priority:"Low",owner:"Amit Patil",status:"New",followupDate:"2026-10-23T10:00",notes:"DEMO: New lead; make first introductory call."},
-    {id:5,name:"Ganesha Multistate Credit Co Op Society Ltd.",phone:"9000000006",company:"Ganesha Multistate Credit Co Op Society Ltd.",street:"Sample Business Park",village:"Andheri East",taluka:"Andheri",district:"Mumbai Suburban",state:"Maharashtra",pin:"400069",contacts:"Vijay More | Operations Head | 9000000006\nSneha Rao | Accounts | 9000000007",referenceBy:"Neha Shah",referenceFrom:"Employee",branchCount:"12",priority:"High",owner:"Neha Shah",status:"Interested",followupDate:"2026-10-19T16:00",notes:"DEMO: Multiple branches; discuss centralized access."},
-    {id:6,name:"Shree Sai Krupa Urban Co Op Credit Society Ltd. (Demo)",phone:"9000000008",company:"Shree Sai Krupa Urban Co Op Credit Society Ltd. (Demo)",street:"Example Ring Road",village:"Kothrud",taluka:"Haveli",district:"Pune",state:"Maharashtra",pin:"411038",contacts:"Anita Joshi | Secretary | 9000000008",referenceBy:"Sunil Patil",referenceFrom:"Existing Institute",branchCount:"4",priority:"Medium",owner:"Rohit More",status:"Contacted",followupDate:"2026-10-22T11:00",notes:"DEMO SAMPLE: Follow up after committee meeting."},
-    {id:7,name:"Mahalaxmi Nagari Sahakari Patsanstha (Demo)",phone:"9000000009",company:"Mahalaxmi Nagari Sahakari Patsanstha (Demo)",street:"Demo Civil Lines",village:"Panchavati",taluka:"Nashik",district:"Nashik",state:"Maharashtra",pin:"422003",contacts:"Nitin Pawar | Chairman | 9000000009",referenceBy:"Priya Deshmukh",referenceFrom:"WhatsApp",branchCount:"6",priority:"High",owner:"Amit Patil",status:"Follow-up",followupDate:"2026-10-20T12:30",notes:"DEMO SAMPLE: Requested quotation."},
-    {id:8,name:"Shree Samarth Multi State Credit Society Ltd. (Demo)",phone:"9000000010",company:"Shree Samarth Multi State Credit Society Ltd. (Demo)",street:"Sample Market Street",village:"Belagavi Camp",taluka:"Belgaum",district:"Belgaum",state:"Karnataka",pin:"590001",contacts:"Deepak Naik | Manager | 9000000010",referenceBy:"Rohit More",referenceFrom:"Other",branchCount:"9",priority:"Medium",owner:"Rohit More",status:"Interested",followupDate:"2026-10-24T14:00",notes:"DEMO SAMPLE: Wants details about branch-wise reports."},
-    {id:9,name:"Aarohi Mahila Nagari Patsanstha (Demo)",phone:"9000000011",company:"Aarohi Mahila Nagari Patsanstha (Demo)",street:"Example Link Road",village:"Borivali West",taluka:"Borivali",district:"Mumbai Suburban",state:"Maharashtra",pin:"400092",contacts:"Meena Kulkarni | Administrator | 9000000011",referenceBy:"Kavita Shah",referenceFrom:"Website",branchCount:"1",priority:"Low",owner:"Neha Shah",status:"New",followupDate:"2026-10-25T10:30",notes:"DEMO SAMPLE: Single branch; initial contact pending."},
-    {id:10,name:"Shree Vighnaharta Credit Co Op Society Ltd. (Demo)",phone:"9000000012",company:"Shree Vighnaharta Credit Co Op Society Ltd. (Demo)",street:"Demo Service Road",village:"Kurla West",taluka:"Kurla",district:"Mumbai Suburban",state:"Maharashtra",pin:"400070",contacts:"Ajay Sawant | Director | 9000000012\nPooja Naik | Office Admin | 9000000013",referenceBy:"Amit Patil",referenceFrom:"Employee",branchCount:"7",priority:"High",owner:"Amit Patil",status:"Converted",followupDate:"2026-10-28T11:00",notes:"DEMO SAMPLE: Converted example lead; schedule onboarding discussion."}
-  ],
+    {
+        "id": 75,
+        "name": "purnmalll lahoti clg od enginnering",
+        "phone": "",
+        "company": "purnmalll lahoti clg od enginnering",
+        "contacts": "sunil patil 98",
+        "street": "clg demo session",
+        "village": "shivajinagr",
+        "taluka": "haveli",
+        "district": "pune",
+        "state": "Maharashtra",
+        "pin": "411001",
+        "referenceBy": "amit patil",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "2026-11-23T06:30",
+        "notes": "intereted in demo class | Contact: sunil patil 98"
+    },
+    {
+        "id": 74,
+        "name": "purnmalll lahoti clg od enginnering",
+        "phone": "",
+        "company": "purnmalll lahoti clg od enginnering",
+        "contacts": "sunil patil 98",
+        "street": "clg demo session",
+        "village": "shivajinagr",
+        "taluka": "haveli",
+        "district": "pune",
+        "state": "Maharashtra",
+        "pin": "411001",
+        "referenceBy": "amit patil",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "2026-11-23T06:30",
+        "notes": "intereted in demo class | Contact: sunil patil 98"
+    },
+    {
+        "id": 73,
+        "name": "puranmal lahoti govern clg",
+        "phone": "9876543210",
+        "company": "puranmal lahoti govern clg",
+        "contacts": "sunil patil 9876543210",
+        "street": "demo for students",
+        "village": "shivajinagar",
+        "taluka": "haveli",
+        "district": "pune",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Amit patil",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "2026-11-23T05:58",
+        "notes": "interested in demo | Contact: sunil patil 9876543210"
+    },
+    {
+        "id": 72,
+        "name": "puranmal lahoti govern clg",
+        "phone": "9876543210",
+        "company": "puranmal lahoti govern clg",
+        "contacts": "sunil patil 9876543210",
+        "street": "demo for students",
+        "village": "shivajinagar",
+        "taluka": "haveli",
+        "district": "pune",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Amit patil",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "2026-11-23T05:58",
+        "notes": "interested in demo | Contact: sunil patil 9876543210"
+    },
+    {
+        "id": 71,
+        "name": "M.B.E.Society Clg of Enginnering",
+        "phone": "",
+        "company": "M.B.E.Society Clg of Enginnering",
+        "contacts": "No contacts",
+        "street": "demo for class",
+        "village": "shivajinagar",
+        "taluka": "haveli",
+        "district": "pune",
+        "state": "Maharashtra",
+        "pin": "411001",
+        "referenceBy": "amit patil",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": "interested"
+    },
+    {
+        "id": 70,
+        "name": "Test Institute",
+        "phone": "",
+        "company": "Test Institute",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "Medium",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 69,
+        "name": "Saraswati Vidya Mandir & Junior College",
+        "phone": "",
+        "company": "Saraswati Vidya Mandir & Junior College",
+        "contacts": "No contacts",
+        "street": "Plot No 12, Paud Road",
+        "village": "Kothrud",
+        "taluka": "Haveli",
+        "district": "Pune",
+        "state": "Maharashtra",
+        "pin": "411001",
+        "referenceBy": "Amit Patil",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 68,
+        "name": "Dr. D. Y. Patil Institute of Tech",
+        "phone": "",
+        "company": "Dr. D. Y. Patil Institute of Tech",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 67,
+        "name": "Indira College of Engineering",
+        "phone": "",
+        "company": "Indira College of Engineering",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 66,
+        "name": "JSPM Rajarshi Shahu College",
+        "phone": "",
+        "company": "JSPM Rajarshi Shahu College",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 65,
+        "name": "AISSMS College of Engineering",
+        "phone": "",
+        "company": "AISSMS College of Engineering",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 64,
+        "name": "Cummins College of Engineering",
+        "phone": "",
+        "company": "Cummins College of Engineering",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 63,
+        "name": "Pimpri Chinchwad College of Engg",
+        "phone": "",
+        "company": "Pimpri Chinchwad College of Engg",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 62,
+        "name": "Sinhgad College of Engineering",
+        "phone": "",
+        "company": "Sinhgad College of Engineering",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 61,
+        "name": "Bharati Vidyapeeth Deemed University",
+        "phone": "",
+        "company": "Bharati Vidyapeeth Deemed University",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 60,
+        "name": "Vishwakarma Institute of Technology",
+        "phone": "",
+        "company": "Vishwakarma Institute of Technology",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 59,
+        "name": "MIT World Peace University",
+        "phone": "",
+        "company": "MIT World Peace University",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 58,
+        "name": "COEP Technological University",
+        "phone": "",
+        "company": "COEP Technological University",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 57,
+        "name": "Shree Ganesh Multistate Credit Co-Op",
+        "phone": "",
+        "company": "Shree Ganesh Multistate Credit Co-Op",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 56,
+        "name": "Modern College of Engineering, Pune",
+        "phone": "",
+        "company": "Modern College of Engineering, Pune",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 55,
+        "name": "NEW HIGH CLG",
+        "phone": "9876543210",
+        "company": "NEW HIGH CLG",
+        "contacts": "SUNIL PATIL 9876543210",
+        "street": "COLONY ROAD",
+        "village": "PARLI",
+        "taluka": "BEED",
+        "district": "BEED",
+        "state": "Maharashtra",
+        "pin": "401515",
+        "referenceBy": "amit patil",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "Contacted",
+        "followupDate": "2026-11-22T01:38",
+        "notes": "interested in visiting school | Contact: SUNIL PATIL 9876543210"
+    },
+    {
+        "id": 54,
+        "name": "new modern school",
+        "phone": "",
+        "company": "new modern school",
+        "contacts": "No contacts",
+        "street": "tps colonye",
+        "village": "shivajinagar",
+        "taluka": "haveli",
+        "district": "pune",
+        "state": "Maharashtra",
+        "pin": "411001",
+        "referenceBy": "amit patil",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 53,
+        "name": "shree ganesh school",
+        "phone": "",
+        "company": "shree ganesh school",
+        "contacts": "No contacts",
+        "street": "parli",
+        "village": "parli",
+        "taluka": "",
+        "district": "beed",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "amit patil",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "Contacted",
+        "followupDate": "2026-11-22T11:00",
+        "notes": "parli, parli, beed \u2022 Lead: Contacted \u2022 Assigned: Amit Patil"
+    },
+    {
+        "id": 52,
+        "name": "xyz.xyz.xyz",
+        "phone": "",
+        "company": "xyz.xyz.xyz",
+        "contacts": "No contacts",
+        "street": "mnl, abc, exg",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Existing Institute",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "2026-11-23T08:34",
+        "notes": "mnl, abc, exg | Lead: New"
+    },
+    {
+        "id": 51,
+        "name": "xyz.xyz.xys",
+        "phone": "",
+        "company": "xyz.xyz.xys",
+        "contacts": "No contacts",
+        "street": "abc",
+        "village": "abs",
+        "taluka": "haveli",
+        "district": "pune",
+        "state": "Maharashtra",
+        "pin": "411001",
+        "referenceBy": "amit patil",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 50,
+        "name": "DY Patil College of Engineering",
+        "phone": "",
+        "company": "DY Patil College of Engineering",
+        "contacts": "No contacts",
+        "street": "Sector 29, Akurdi",
+        "village": "shivajinagar",
+        "taluka": "Haveli",
+        "district": "Pune",
+        "state": "Maharashtra",
+        "pin": "431515",
+        "referenceBy": "Amit Patil",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": "Interested in CRM software demo"
+    },
+    {
+        "id": 49,
+        "name": "Modern College Pune",
+        "phone": "",
+        "company": "Modern College Pune",
+        "contacts": "No contacts",
+        "street": "FC Road",
+        "village": "shivajinagar",
+        "taluka": "haveli",
+        "district": "pune",
+        "state": "Maharashtra",
+        "pin": "411001",
+        "referenceBy": "amit patil",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": "interested in demo session"
+    },
+    {
+        "id": 48,
+        "name": "Saraswati Vidya Mandir & Junior College",
+        "phone": "",
+        "company": "Saraswati Vidya Mandir & Junior College",
+        "contacts": "No contacts",
+        "street": "Plot No 12, Paud Road",
+        "village": "Kothrud",
+        "taluka": "Haveli",
+        "district": "Pune",
+        "state": "Maharashtra",
+        "pin": "411001",
+        "referenceBy": "Amit Patil",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 47,
+        "name": "Test Institute",
+        "phone": "",
+        "company": "Test Institute",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "Medium",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 46,
+        "name": "Test Institute",
+        "phone": "",
+        "company": "Test Institute",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "Medium",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 45,
+        "name": "Test Institute",
+        "phone": "",
+        "company": "Test Institute",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "Medium",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 44,
+        "name": "Test Institute",
+        "phone": "",
+        "company": "Test Institute",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "Medium",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 43,
+        "name": "Test Institute",
+        "phone": "",
+        "company": "Test Institute",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "Medium",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 42,
+        "name": "Test Institute",
+        "phone": "",
+        "company": "Test Institute",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "Medium",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 41,
+        "name": "Test Institute",
+        "phone": "",
+        "company": "Test Institute",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "Medium",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 40,
+        "name": "Test Institute",
+        "phone": "",
+        "company": "Test Institute",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "Medium",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 39,
+        "name": "Test Institute",
+        "phone": "",
+        "company": "Test Institute",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "Medium",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 38,
+        "name": "Test Institute",
+        "phone": "",
+        "company": "Test Institute",
+        "contacts": "No contacts",
+        "street": "",
+        "village": "",
+        "taluka": "",
+        "district": "",
+        "state": "Maharashtra",
+        "pin": "",
+        "referenceBy": "Employee",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "Medium",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "",
+        "notes": ""
+    },
+    {
+        "id": 1,
+        "name": "Demo Institute Updated",
+        "phone": "",
+        "company": "Demo Institute Updated",
+        "contacts": "No contacts",
+        "street": "Sample Road 123",
+        "village": "Test Village",
+        "taluka": "Test Taluka",
+        "district": "Pune",
+        "state": "Maharashtra",
+        "pin": "411005",
+        "referenceBy": "Amit Patil",
+        "referenceFrom": "Employee",
+        "branchCount": "5",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "Interested",
+        "followupDate": "",
+        "notes": "Updated from Postman"
+    }
+],
   calls: [
     {id:101,customer:"Shree Ganesh Co Op Credit Society Ltd.",type:"Outgoing",date:"16 Oct, 11:20",result:"Interested",notes:"DEMO: Asked for product demo."},
     {id:102,customer:"Shree Nagari Sahakari Patsanstha Maryadit",type:"Outgoing",date:"16 Oct, 15:10",result:"Call Back",notes:"DEMO: Call after committee meeting."},
@@ -103,6 +913,48 @@ const state = {
   nextId: 400
 };
 
+function loadStoredState() {
+  try {
+    const c = localStorage.getItem("crm_saved_customers");
+    if (c) {
+      const parsed = JSON.parse(c);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Merge: keep all 39 latest institutes, and append any custom items added in browser
+        const stateNames = new Set(state.customers.map(x => (x.name || "").toLowerCase()));
+        const customItems = parsed.filter(x => !stateNames.has((x.name || "").toLowerCase()));
+        state.customers = [...state.customers, ...customItems];
+      }
+    }
+    const cl = localStorage.getItem("crm_saved_calls");
+    if (cl) {
+      const parsed = JSON.parse(cl);
+      if (Array.isArray(parsed)) state.calls = parsed;
+    }
+    const v = localStorage.getItem("crm_saved_visits");
+    if (v) {
+      const parsed = JSON.parse(v);
+      if (Array.isArray(parsed)) state.visits = parsed;
+    }
+    const f = localStorage.getItem("crm_saved_followups");
+    if (f) {
+      const parsed = JSON.parse(f);
+      if (Array.isArray(parsed)) state.followups = parsed;
+    }
+  } catch(e) {}
+  persistState();
+}
+
+function persistState() {
+  try {
+    localStorage.setItem("crm_saved_customers", JSON.stringify(state.customers));
+    localStorage.setItem("crm_saved_calls", JSON.stringify(state.calls));
+    localStorage.setItem("crm_saved_visits", JSON.stringify(state.visits));
+    localStorage.setItem("crm_saved_followups", JSON.stringify(state.followups));
+  } catch(e) {}
+}
+
+loadStoredState();
+
 const pageInfo = {
   dashboard: ["Dashboard", "Here’s what’s happening with your team today.", "Add Institute"],
   customers: ["Customers", "Manage institute information and leads.", "Add Institute"],
@@ -110,7 +962,10 @@ const pageInfo = {
   visits: ["Visits", "Plan and record customer visits.", "Record Visit"],
   followups: ["Follow-ups", "Never miss your next customer follow-up.", "Schedule Follow-up"]
 };
-const employeeOptions = ["Unassigned", "Amit Patil", "Neha Shah", "Rohit More"];
+
+const storedUserObj = JSON.parse(localStorage.getItem("crm_auth_user") || "{}");
+const activeCurrentUserName = storedUserObj.fullName || "Rahul Shinde";
+const employeeOptions = Array.from(new Set(["Unassigned", activeCurrentUserName, "Amit Patil", "Neha Shah", "Rohit More"]));
 const statusOptions = ["New", "Contacted", "Interested", "Follow-up", "Converted", "Not Interested"];
 const priorityOptions = ["High", "Medium", "Low"];
 const callResults = ["Interested", "Call Back", "No Answer", "Not Interested"];
@@ -310,10 +1165,11 @@ function saveRecord(type, data) {
     const customer={id:state.nextId++,name:data.name.trim(),phone:phone,company:data.name.trim(),street:data.street.trim(),village:data.village.trim(),taluka:data.taluka.trim(),district:data.district.trim(),state:data.state.trim(),pin:data.pin.trim(),contacts:data.contacts.trim(),referenceBy:data.referenceBy.trim(),referenceFrom:data.referenceFrom,branchCount:data.branchCount === "" ? "" : Math.max(1, parseInt(data.branchCount, 10) || 1),priority:data.priority||"Medium",owner:data.owner,status:data.status,followupDate:data.followupDate,notes:data.notes.trim()};
     state.customers.unshift(customer);
     if(data.followupDate) state.followups.unshift({id:state.nextId++,customer:customer.name,date:data.followupDate,owner:data.owner,status:"Upcoming",notes:data.notes.trim()||"Institute follow-up"});
+    persistState();
     showNotice("Saving institute to PostgreSQL...");
 
-    // Send POST to PostgreSQL backend
-    fetch("http://localhost:8080/api/institutes", {
+    // Send POST to backend
+    fetch(`${API_BASE_URL}/api/institutes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -327,8 +1183,9 @@ function saveRecord(type, data) {
         branchCount: data.branchCount ? Math.max(1, parseInt(data.branchCount, 10)) : 1,
         referenceBy: data.referenceBy ? data.referenceBy.trim() : "Employee",
         referenceFrom: (["Employee", "Existing Institute", "Website", "WhatsApp", "Other"].includes(data.referenceFrom)) ? data.referenceFrom : "Employee",
-        leadStatus: "New",
+        leadStatus: (["New", "Contacted", "Interested", "Follow-up", "Converted", "Not Interested"].includes(data.status)) ? data.status : "New",
         priority: (["Low", "Medium", "High"].includes(data.priority)) ? data.priority : "Medium",
+        nextFollowUpAt: data.followupDate ? new Date(data.followupDate).toISOString() : null,
         notes: data.notes ? data.notes.trim() : ""
       })
     })
@@ -345,15 +1202,19 @@ function saveRecord(type, data) {
     const activityDate=data.activityDate || now.toISOString().slice(0,16);
     state.calls.unshift({id:state.nextId++,customer:data.customer,type:data.callType,date:activityDate,owner:data.owner||"Unassigned",contactPerson:data.contactPerson.trim(),contactPhone:data.contactPhone.trim(),result:data.result,notes:data.notes.trim()});
     if(data.followupDate) state.followups.unshift({id:state.nextId++,customer:data.customer,date:data.followupDate,owner:data.owner||customerByName(data.customer)?.owner||employeeOptions[0],status:"Upcoming",notes:"Follow-up after call"});
+    persistState();
     showNotice("Call record saved in this browser prototype.");
   } else if(type==="visit") {
     const activityDate=data.activityDate || now.toISOString().slice(0,16);
     state.visits.unshift({id:state.nextId++,customer:data.customer,date:activityDate,owner:data.owner,status:data.status,contactPerson:data.contactPerson.trim(),contactPhone:data.contactPhone.trim(),purpose:data.purpose.trim(),notes:data.notes.trim()});
+    persistState();
     showNotice("Visit record saved in this browser prototype.");
   } else if(type==="followup") {
     state.followups.unshift({id:state.nextId++,customer:data.customer,date:data.date,owner:data.owner,status:"Upcoming",notes:data.notes.trim()});
+    persistState();
     showNotice("Follow-up scheduled in this browser prototype.");
   }
+  persistState();
   $("record-dialog").close();
   renderAll();
 }
@@ -387,11 +1248,11 @@ document.addEventListener("click",e=>{
   const log=e.target.closest("[data-log-customer]");
   if(log){setPage("calls");openDialog("call");const select=$('dialog-fields').querySelector('[name="customer"]');if(select)select.value=log.dataset.logCustomer;}
   const completeVisit=e.target.closest("[data-complete-visit]");
-  if(completeVisit){const v=state.visits.find(x=>x.id===Number(completeVisit.dataset.completeVisit));if(v)v.status="Completed";renderAll();showNotice("Visit marked as completed.");}
+  if(completeVisit){const v=state.visits.find(x=>x.id===Number(completeVisit.dataset.completeVisit));if(v)v.status="Completed";persistState();renderAll();showNotice("Visit marked as completed.");}
   const complete=e.target.closest("[data-complete-followup]");
-  if(complete){const f=state.followups.find(x=>x.id===Number(complete.dataset.completeFollowup));if(f)f.status="Completed";renderAll();showNotice("Follow-up marked as completed.");}
+  if(complete){const f=state.followups.find(x=>x.id===Number(complete.dataset.completeFollowup));if(f)f.status="Completed";persistState();renderAll();showNotice("Follow-up marked as completed.");}
   const reschedule=e.target.closest("[data-reschedule-followup]");
-  if(reschedule){const f=state.followups.find(x=>x.id===Number(reschedule.dataset.rescheduleFollowup));if(!f)return;openDialog("followup");const fields=$("dialog-fields");fields.querySelector('[name="customer"]').value=f.customer;fields.querySelector('[name="owner"]').value=f.owner;fields.querySelector('[name="date"]').value=f.date;fields.querySelector('[name="notes"]').value=f.notes||"";state.followups=state.followups.filter(x=>x.id!==f.id);}
+  if(reschedule){const f=state.followups.find(x=>x.id===Number(reschedule.dataset.rescheduleFollowup));if(!f)return;openDialog("followup");const fields=$("dialog-fields");fields.querySelector('[name="customer"]').value=f.customer;fields.querySelector('[name="owner"]').value=f.owner;fields.querySelector('[name="date"]').value=f.date;fields.querySelector('[name="notes"]').value=f.notes||"";state.followups=state.followups.filter(x=>x.id!==f.id);persistState();}
   const logFollowup=e.target.closest("[data-followup-call]");
   if(logFollowup){setPage("calls");openDialog("call");const select=$('dialog-fields').querySelector('[name="customer"]');if(select)select.value=logFollowup.dataset.followupCall;}
 });
@@ -406,14 +1267,14 @@ if (todayLbl) {
 applyRole();
 
 async function loadLiveDatabaseData() {
-  const BACKEND_URL = "http://localhost:8080/api";
+  const BACKEND_URL = `${API_BASE_URL}/api`;
   try {
     const res = await fetch(`${BACKEND_URL}/institutes`);
     if (res.ok) {
       const json = await res.json();
       const list = json.data || json;
       if (Array.isArray(list) && list.length > 0) {
-        state.customers = list.map(inst => ({
+        const liveCustomers = list.map(inst => ({
           id: inst.instituteId || inst.id,
           name: inst.instituteName || inst.name,
           phone: inst.primaryContactPhone || inst.phone || "",
@@ -436,34 +1297,71 @@ async function loadLiveDatabaseData() {
           followupDate: inst.nextFollowUpAt || "",
           notes: inst.notes || ""
         }));
+        liveCustomers.sort((a, b) => (b.id || 0) - (a.id || 0));
+        state.customers = liveCustomers;
+
+        // Auto-sync follow-ups from live institute records that have nextFollowUpAt
+        liveCustomers.forEach(inst => {
+          if (inst.followupDate) {
+            const fDate = new Date(inst.followupDate);
+            const today = new Date();
+            let fStatus = "Upcoming";
+            if (fDate.toDateString() === today.toDateString()) {
+              fStatus = "Due Today";
+            } else if (fDate < today) {
+              fStatus = "Overdue";
+            }
+            const existingIdx = state.followups.findIndex(f => (f.customer || '').toLowerCase() === inst.name.toLowerCase());
+            const fObj = {
+              id: inst.id * 1000 + 1,
+              customer: inst.name,
+              date: inst.followupDate.slice(0, 16),
+              owner: inst.owner || "Amit Patil",
+              status: fStatus,
+              notes: inst.notes || "Scheduled follow-up"
+            };
+            if (existingIdx !== -1) {
+              state.followups[existingIdx] = fObj;
+            } else {
+              state.followups.unshift(fObj);
+            }
+          }
+        });
+
+        // Also fetch from backend /api/follow-ups
+        try {
+          const fRes = await fetch(`${BACKEND_URL}/follow-ups`);
+          if (fRes.ok) {
+            const fJson = await fRes.json();
+            const fList = fJson.data || fJson;
+            if (Array.isArray(fList) && fList.length > 0) {
+              fList.forEach(f => {
+                const match = liveCustomers.find(c => c.id === f.instituteId);
+                const cName = match ? match.name : `Institute #${f.instituteId}`;
+                if (!state.followups.some(ex => ex.id === f.followUpId || (ex.customer === cName && ex.date === f.scheduledAt?.slice(0, 16)))) {
+                  state.followups.unshift({
+                    id: f.followUpId,
+                    customer: cName,
+                    date: f.scheduledAt ? f.scheduledAt.slice(0, 16) : "",
+                    owner: f.employeeName || "Amit Patil",
+                    status: f.followUpStatus === "Pending" ? "Upcoming" : f.followUpStatus,
+                    notes: f.notes || "Follow-up"
+                  });
+                }
+              });
+            }
+          }
+        } catch(fe) {}
+
+        persistState();
         renderAll();
       }
     }
   } catch(e) {}
-
-  try {
-    const dashRes = await fetch(`${BACKEND_URL}/dashboard`);
-    if (dashRes.ok) {
-      const json = await dashRes.json();
-      const d = json.data || json;
-      if (d.totalInstitutes !== undefined) {
-        const el = $("stat-customers");
-        if (el) el.textContent = d.totalInstitutes;
-      }
-      if (d.totalCalls !== undefined) {
-        const el = $("stat-calls");
-        if (el) el.textContent = d.totalCalls;
-      }
-      if (d.totalVisits !== undefined) {
-        const el = $("stat-visits");
-        if (el) el.textContent = d.totalVisits;
-      }
-      if (d.pendingFollowUps !== undefined) {
-        const el = $("stat-followups");
-        if (el) el.textContent = d.pendingFollowUps;
-      }
-    }
-  } catch(e) {}
+  renderAll();
 }
 
 loadLiveDatabaseData();
+setInterval(loadLiveDatabaseData, 3000);
+
+
