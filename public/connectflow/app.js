@@ -74,6 +74,27 @@ const state = {
   // DEMO ONLY: all contact names, phone numbers, addresses and activity below are illustrative.
   customers: [
     {
+        "id": 76,
+        "name": "DY.PATIL CLG ENGINNERING",
+        "phone": "9876543210",
+        "company": "DY.PATIL CLG ENGINNERING",
+        "contacts": "Sunil Patil | Principal | 9876543210",
+        "street": "Sector 29, Nigdi Pradhikaran, Akurdi",
+        "village": "Akurdi",
+        "taluka": "Haveli",
+        "district": "Pune",
+        "state": "Maharashtra",
+        "pin": "411044",
+        "referenceBy": "Amit Patil",
+        "referenceFrom": "Employee",
+        "branchCount": "1",
+        "priority": "High",
+        "owner": "Amit Patil",
+        "status": "New",
+        "followupDate": "2026-11-23T03:59",
+        "notes": "Interested in demo session | Contact: Sunil Patil 9876543210"
+    },
+    {
         "id": 75,
         "name": "purnmalll lahoti clg od enginnering",
         "phone": "",
