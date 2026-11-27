@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import {
@@ -13,7 +12,7 @@ import {
 import "./App.css";
 
 const API = axios.create({
-  baseURL: "https://connectflow-springboot-backend.onrender.com/api",
+  baseURL: "http://localhost:5000/api",
 });
 
 const modules = [
@@ -197,7 +196,7 @@ export default function App() {
 
                       <h2>{card.value}</h2>
 
-                      <small>From Spring Boot API</small>
+                      <small>From Express & PostgreSQL API</small>
                     </article>
                   );
                 })}
@@ -227,9 +226,7 @@ export default function App() {
               </div>
 
               {rows.length === 0 ? (
-                <p className="empty-message">
-                
-                </p>
+                <p className="empty-message">No records found.</p>
               ) : (
                 <div className="table-wrapper">
                   <table>
@@ -247,6 +244,7 @@ export default function App() {
                           key={
                             row.employeeId ??
                             row.instituteId ??
+                            row.customer_id ??
                             row.id ??
                             index
                           }
@@ -274,4 +272,3 @@ export default function App() {
     </div>
   );
 }
-
